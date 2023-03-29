@@ -65,7 +65,7 @@
     </div>
 
     <div class='mt-3 text-center'>
-        <h3 style="font-size: 22px;color:#ffffff;font-family: 'Sofia Sans Extra Condensed', sans-serif;">{{ datetoday2 }} | <span id="clock"></span></h3>
+        <h3 style="font-size: 22px;color:#ffffff;font-family: 'Sofia Sans Extra Condensed', sans-serif;">{{ today }} | <span id="clock"></span></h3>
     </div>
 
     {% if mess%}
@@ -91,6 +91,7 @@
                     <td><b>ID</b></td>
                     <td><b>Time</b></td>
                 </tr>
+                
                 {% if l %}
 
                 {% for i in range(l) %}
