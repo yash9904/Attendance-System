@@ -9,10 +9,8 @@ import joblib
 
 class attendance:
     def __init__(self):
-
         self.datetoday = date.today().strftime("%m_%d_%y")
         
-
         if not os.path.isdir('Attendance'):
             os.makedirs('Attendance')
         if not os.path.isdir('static/faces'):
@@ -51,13 +49,18 @@ class face_detection:
         self.face_detector = cv2.CascadeClassifier('static/haarcascade_frontalface_default.xml')
         self.eye_detector = cv2.CascadeClassifier('static/haarcascade_eye_tree_eyeglasses.xml')
 
+    def create_eye_features(self, *args):
+        features = tuple(map(lambda img: cv2.resize(img, (10, 10)).ravel(), args))
+        features = np.hstack(features)
+        return features
+
     def create_features(self, face, eye_1, eye_2):
         face = cv2.resize(face, (50, 50))
-        eye_1 = cv2.resize(eye_1, (10, 10))
-        eye_2 = cv2.resize(eye_2, (10, 10))
-
-        features = np.hstack((face.ravel(), eye_1.ravel(), eye_2.ravel()))
+        eye_features = self.create_eye_features(eye_1, eye_2)
+        features = np.hstack((face.ravel(), eye_features))
+        
         return features
+    
     #### extract the face from an image
     def extract_eyes(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -74,6 +77,10 @@ class face_detection:
     def identify_face(self, facearray):
         model = joblib.load('static/face_recognition_model.pkl')
         return model.predict(facearray)
+    
+    def identify_eye(self, eyearray):
+        model = joblib.load('static/eye_recognition_model.pkl')
+        return model.predict(eyearray)
 
     #### A function which trains the model on all the faces available in faces folder
     def train_model(self):
@@ -96,12 +103,17 @@ class face_detection:
         knn = KNeighborsClassifier(n_neighbors = 5)
         knn.fit(features, labels)
         joblib.dump(knn, 'static/face_recognition_model.pkl')
-    
-    def detect_face(self, frame):
 
-        (x,y,w,h) = self.extract_faces(frame)[0]
-        cv2.rectangle(frame,(x, y), (x+w, y+h), (255, 0, 20), 2)
-        face = frame[y:y+h,x:x+w]
+        knn = KNeighborsClassifier(n_neighbors = 5)
+        knn.fit(features[:, -600:], labels)
+        joblib.dump(knn, 'static/eye_recognition_model.pkl')
+
+    
+    def detect(self, frame, only_eyes = False):
+        if not(only_eyes):
+            (x,y,w,h) = self.extract_faces(frame)[0]
+            cv2.rectangle(frame,(x, y), (x+w, y+h), (255, 0, 20), 2)
+            face = frame[y:y+h,x:x+w]
 
         eye_1_coords, eye_2_coords = self.extract_eyes(frame)
         (x,y,w,h) = eye_1_coords
@@ -112,12 +124,18 @@ class face_detection:
         cv2.rectangle(frame,(x, y), (x+w, y+h), (255, 0, 20), 2)
         eye_2 = frame[y:y+h,x:x+w]
 
-        features = self.create_features(face, eye_1, eye_2)[np.newaxis, ...]
-
-        identified_person = self.identify_face(features)[0]
+        if only_eyes:
+            features = self.create_eye_features(eye_1, eye_2)[np.newaxis, ...]
+            identified_person = self.identify_eye(features)[0]
+        else:
+            features = self.create_features(face, eye_1, eye_2)[np.newaxis, ...]
+            identified_person = self.identify_face(features)[0]
 
         return identified_person, frame
 
 
-    def is_face(self, frame):
+    def is_face_and_eye(self, frame):
         return True if np.any(self.extract_faces(frame)) and (len(self.extract_eyes(frame)) == 2) else False
+    
+    def is_eye(self, frame):
+        return True if (len(self.extract_eyes(frame)) == 2) else False

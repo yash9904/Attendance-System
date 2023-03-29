@@ -1,12 +1,8 @@
 import cv2
 import os
-from flask import Flask,request,render_template
+from flask import Flask,request, render_template
 from datetime import date
-from datetime import datetime
-import numpy as np
-from sklearn.neighbors import KNeighborsClassifier
-import pandas as pd
-import joblib
+
 
 from pyattendance import attendance, face_detection
 
@@ -23,24 +19,40 @@ face_detector = face_detection()
 #### Our main page
 @app.route('/')
 def home():
-    names,rolls,times,l = atd.extract_attendance()    
-    return render_template('home.html',names=names,rolls=rolls,times=times,l=l,totalreg=atd.totalreg(),today=today) 
+    names, rolls, times, l = atd.extract_attendance()    
+    return render_template('home.html',
+                            names = names, 
+                            rolls = rolls,
+                            times = times,
+                            l = l,
+                            totalreg = atd.totalreg(),
+                            today = today) 
 
 
 #### This function will run when we click on Take Attendance Button
 @app.route('/start',methods=['GET'])
 def start():
     if 'face_recognition_model.pkl' not in os.listdir('static'):
-        return render_template('home.html',totalreg=atd.totalreg(),today=atd.today,mess='There is no trained model in the static folder. Please add a new face to continue.') 
+        return render_template('home.html',
+                               totalreg = atd.totalreg(),
+                               today = atd.today,
+                               mess = 'There is no trained model in the static folder. Please add a new face to continue.') 
 
     cap = cv2.VideoCapture(0)
     ret = True
     face_count = 0
     while ret:
         ret,frame = cap.read()
-        if face_detector.is_face(frame):
+        if face_detector.is_face_and_eye(frame):
+
+            identified_person, frame = face_detector.detect(frame)
             
-            identified_person, frame = face_detector.detect_face(frame)
+            atd.add_attendance(identified_person)
+            cv2.putText(frame,f'{identified_person}',(200,35),cv2.FONT_HERSHEY_SIMPLEX,1,(255, 0, 20),2,cv2.LINE_AA)
+            face_count+=1
+
+        elif face_detector.is_eye(frame):
+            identified_person, frame = face_detector.detect(frame, only_eyes = True)
             
             atd.add_attendance(identified_person)
             cv2.putText(frame,f'{identified_person}',(200,35),cv2.FONT_HERSHEY_SIMPLEX,1,(255, 0, 20),2,cv2.LINE_AA)
@@ -54,7 +66,13 @@ def start():
     cap.release()
     cv2.destroyAllWindows()
     names,rolls,times,l = atd.extract_attendance()    
-    return render_template('home.html',names=names,rolls=rolls,times=times,l=l,totalreg=atd.totalreg(),today=today) 
+    return render_template('home.html',
+                           names = names,
+                           rolls = rolls,
+                           times = times,
+                           l = l,
+                           totalreg = atd.totalreg(),
+                           today = today)
 
 #### This function will run when we add a new user
 @app.route('/add',methods=['GET','POST'])
@@ -71,7 +89,7 @@ def add():
 
     cap = cv2.VideoCapture(0)
     n_face_caps, n_faces = 0, 0
-    n_eye_caps, n_eyes = 0, 0
+    n_eyes = 0
     faces_captured = False
     eyes_captured = False
     while 1:
@@ -119,7 +137,13 @@ def add():
     print('Training Model')
     face_detector.train_model()
     names,rolls,times,l = atd.extract_attendance()    
-    return render_template('home.html',names=names,rolls=rolls,times=times,l=l,totalreg=atd.totalreg(),today=today) 
+    return render_template('home.html',
+                           names = names,
+                           rolls = rolls,
+                           times = times,
+                           l = l,
+                           totalreg = atd.totalreg(),
+                           today = today) 
 
 #### Our main function which runs the Flask App
 if __name__ == '__main__':
